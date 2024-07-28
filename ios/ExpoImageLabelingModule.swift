@@ -1,43 +1,47 @@
 import ExpoModulesCore
+import MLKitVision
+import MLKitImageLabeling
+
+let confidence: NSNumber = 0.7
+
+struct ImageLabel: Codable {
+  let text: String
+  let index: Int
+  let confidence: Float
+}
 
 public class ExpoImageLabelingModule: Module {
-  // Each module class must implement the definition function. The definition consists of components
-  // that describes the module's functionality and behavior.
-  // See https://docs.expo.dev/modules/module-api for more details about available components.
   public func definition() -> ModuleDefinition {
-    // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
-    // Can be inferred from module's class name, but it's recommended to set it explicitly for clarity.
-    // The module will be accessible from `requireNativeModule('ExpoImageLabeling')` in JavaScript.
     Name("ExpoImageLabeling")
-
-    // Sets constant properties on the module. Can take a dictionary or a closure that returns a dictionary.
-    Constants([
-      "PI": Double.pi
-    ])
-
-    // Defines event names that the module can send to JavaScript.
-    Events("onChange")
-
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
-    Function("hello") {
-      return "Hello world! 👋"
-    }
-
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("setValueAsync") { (value: String) in
-      // Send an event to JavaScript.
-      self.sendEvent("onChange", [
-        "value": value
-      ])
-    }
-
-    // Enables the module to be used as a native view. Definition components that are accepted as part of the
-    // view definition: Prop, Events.
-    View(ExpoImageLabelingView.self) {
-      // Defines a setter for the `name` prop.
-      Prop("name") { (view: ExpoImageLabelingView, prop: String) in
-        print(prop)
+    
+    AsyncFunction("labelImageData") { (imageData: String) -> [String: Any] in
+      do {
+        guard let data = Data(base64Encoded: imageData),
+              let image = UIImage(data: data) else {
+          throw NSError(domain: "MLKitError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to decode image data"])
+        }
+        
+        let visionImage = VisionImage(image: image)
+        visionImage.orientation = image.imageOrientation
+        
+        let options = ImageLabelerOptions()
+        options.confidenceThreshold = confidence
+        
+        let labeler = ImageLabeler.imageLabeler(options: options)
+        
+        let visionLabels = try await labeler.process(visionImage)
+        
+        let labels = visionLabels.map { visionLabel in
+          [
+            "text": visionLabel.text,
+            "index": visionLabel.index,
+            "confidence": visionLabel.confidence
+          ]
+        }
+        
+        return ["labels": labels]
+      } catch {
+        return ["error": error.localizedDescription]
       }
     }
   }

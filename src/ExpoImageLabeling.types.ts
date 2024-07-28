@@ -1,7 +1,5 @@
-export type ChangeEventPayload = {
-  value: string;
-};
-
-export type ExpoImageLabelingViewProps = {
-  name: string;
-};
+export interface ImageLabel {
+  text: string;
+  index: number;
+  confidence: number;
+}
